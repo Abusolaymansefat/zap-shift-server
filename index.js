@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const admin = require("firebase-admin");
 
 dotenv.config();
 const stripe = require("stripe")(process.env.PAYMENT_GATEWAY_KEY);
@@ -11,6 +12,14 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+
+const serviceAccount = require("./firebase-adminsdk-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.sq4up6y.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -30,18 +39,48 @@ async function run() {
 
     const db = client.db("parcelDB");
     const parcelCollection = db.collection("parcels");
+    const usersCollection = db.collection('users');
     const paymentsCollection = db.collection("payments");
 
-    app.get("/parcels", async (req, res) => {
-      const parcels = await parcelCollection.find().toArray();
-      res.send(parcels);
-    });
+    // app.get("/parcels", async (req, res) => {
+    //   const parcels = await parcelCollection.find().toArray();
+    //   res.send(parcels);
+    // });
+
+    // custom middleweres 
+
+    const verifyFbToken = async(req, res, next) => {
+      // console.log('header in middleware', req.headers)
+      const authHeader = req.headers.authorization;
+      if(!authHeader){
+        return res.status(401).send({message: 'unauthorized access'})
+      }
+      const token = authHeader.split('')[1];
+      if(!token) {
+         return res.status(401).send({message: 'unauthorized access'})
+      }
+
+      next()
+    }
+
+    app.post('/users', async(req,res) => {
+      const email= req.body.email;
+      const userExists = await usersCollection.findOne ({ email })
+      if(userExists){
+        return res.status(200).send({ message: 'User already exists', inserted: false})
+      }
+
+      const user = req.body;
+      const result = await usersCollection.insertOne(user)
+      res.send(result)
+    })
 
     // parcels api
     // GET: All parcels OR parcels by user (created_by), sorted by latest
     app.get("/parcels", async (req, res) => {
       try {
         const userEmail = req.query.email;
+        console.log(req.headers)
 
         const query = userEmail ? { created_by: userEmail } : {};
         const options = {
@@ -126,7 +165,9 @@ async function run() {
       res.send({ success: true, insertedId: result.insertedId });
     });
 
-    app.get("/payments", async (req, res) => {
+    app.get("/payments", verifyFbToken, async (req, res) => {
+
+      // console.log('headers in payments', req.headers)
       try {
         const userEmail = req.query.email;
 
