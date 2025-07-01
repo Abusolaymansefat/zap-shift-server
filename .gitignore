@@ -1,4 +1,4 @@
-node_modules
+firebase-adminsdk-key.json
 .env
-firebase-adminsdk-key.json 
+node_modules/
 .DS_Store
