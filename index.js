@@ -228,7 +228,7 @@ async function run() {
 
     app.patch("/parcels/:id/assign", async (req, res) => {
       const parcelId = req.params.id;
-      const { riderId, riderName } = req.body;
+      const { riderId, riderName, riderEmail } = req.body;
 
       try {
         // Update parcel
@@ -236,8 +236,9 @@ async function run() {
           { _id: new ObjectId(parcelId) },
           {
             $set: {
-              delivery_status: "in_transit",
+              delivery_status: "rider-assigned",
               assigned_rider_id: riderId,
+              assigned_rider_email: riderEmail,
               assigned_rider_name: riderName,
             },
           }
@@ -441,20 +442,42 @@ async function run() {
       }
     });
 
-    app.post("/create-payment-intent", async (req, res) => {
-      const amountInCents = req.body.amountInCents;
-      try {
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: amountInCents, // Amount in cents
-          currency: "usd",
-          payment_method_types: ["card"],
-        });
+    // app.post("/create-payment-intent", async (req, res) => {
+    //   const amountInCents = req.body.amountInCents;
+    //   console.log(amountInCents)
+    //   try {
+    //     const paymentIntent = await stripe.paymentIntents.create({
+    //       amount: amountInCents, // Amount in cents
+    //       currency: "usd",
+    //       payment_method_types: ["card"],
+    //     });
 
-        res.json({ clientSecret: paymentIntent.client_secret });
-      } catch (error) {
-        res.status(500).json({ error: error.message });
-      }
+    //     res.json({ clientSecret: paymentIntent.client_secret });
+    //   } catch (error) {
+    //     res.status(500).json({ error: error.message });
+    //   }
+    // });
+    app.post("/create-payment-intent", async (req, res) => {
+  const { amountInCents } = req.body;
+
+  if (!amountInCents || typeof amountInCents !== "number") {
+    return res.status(400).json({ error: "Invalid or missing amountInCents" });
+  }
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "usd",
+      payment_method_types: ["card"],
     });
+
+    res.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error("Stripe error:", error.message);
+    res.status(500).json({ error: "Failed to create payment intent" });
+  }
+});
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
