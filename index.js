@@ -41,11 +41,7 @@ async function run() {
     const paymentsCollection = db.collection("payments");
     const ridersCollection = db.collection("riders");
 
-    // app.get("/parcels", async (req, res) => {
-    //   const parcels = await parcelCollection.find().toArray();
-    //   res.send(parcels);
-    // });
-
+   
     // custom middleweres
 
     const verifyFbToken = async (req, res, next) => {
@@ -194,7 +190,7 @@ async function run() {
 
         console.log("parcel query", req.query, query);
 
-        const parcels = await parcelCollection.find(query, options).toArray();
+        const parcels = await parcelsCollection.find(query, options).toArray();
         res.send(parcels);
       } catch (error) {
         console.error("Error fetching parcels:", error);
@@ -207,7 +203,7 @@ async function run() {
       try {
         const id = req.params.id;
 
-        const parcel = await parcelCollection.findOne({
+        const parcel = await parcelsCollection.findOne({
           _id: new ObjectId(id),
         });
 
@@ -366,7 +362,7 @@ async function run() {
       try {
         const newParcel = req.body;
         // newParcel.createdAt = new Date();
-        const result = await parcelCollection.insertOne(newParcel);
+        const result = await parcelsCollection.insertOne(newParcel);
         res.status(201).send(result);
       } catch (error) {
         console.error("Error inserting parcel:", error);
@@ -380,7 +376,7 @@ async function run() {
 
       try {
         // Update parcel
-        await parcelCollection.updateOne(
+        await parcelsCollection.updateOne(
           { _id: new ObjectId(parcelId) },
           {
             $set: {
@@ -413,7 +409,7 @@ async function run() {
       try {
         const id = req.params.id;
 
-        const result = await parcelCollection.deleteOne({
+        const result = await parcelsCollection.deleteOne({
           _id: new ObjectId(id),
         });
 
@@ -590,21 +586,6 @@ async function run() {
       }
     });
 
-    // app.post("/create-payment-intent", async (req, res) => {
-    //   const amountInCents = req.body.amountInCents;
-    //   console.log(amountInCents)
-    //   try {
-    //     const paymentIntent = await stripe.paymentIntents.create({
-    //       amount: amountInCents, // Amount in cents
-    //       currency: "usd",
-    //       payment_method_types: ["card"],
-    //     });
-
-    //     res.json({ clientSecret: paymentIntent.client_secret });
-    //   } catch (error) {
-    //     res.status(500).json({ error: error.message });
-    //   }
-    // });
     app.post("/create-payment-intent", async (req, res) => {
       const { amountInCents } = req.body;
 
