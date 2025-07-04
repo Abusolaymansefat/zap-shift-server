@@ -38,10 +38,10 @@ async function run() {
     const db = client.db("parcelDB");
     const parcelsCollection = db.collection("parcels");
     const usersCollection = db.collection("users");
+    const trackingsCollection = db.collection("trackings");
     const paymentsCollection = db.collection("payments");
     const ridersCollection = db.collection("riders");
 
-   
     // custom middleweres
 
     const verifyFbToken = async (req, res, next) => {
@@ -282,7 +282,6 @@ async function run() {
       }
     );
 
-
     app.patch("/parcels/:id/assign", async (req, res) => {
       const parcelId = req.params.id;
       const { riderId, riderName, riderEmail } = req.body;
@@ -420,6 +419,20 @@ async function run() {
       }
     });
 
+    app.post("/trackings", async (req, res) => {
+      const update = req.body;
+
+      update.timestamp = new Date(); // ensure correct timestamp
+      if (!update.tracking_id || !update.status) {
+        return res
+          .status(400)
+          .json({ message: "tracking_id and status are required." });
+      }
+
+      const result = await trackingsCollection.insertOne(update);
+      res.status(201).json(result);
+    });
+
     app.post("/riders", async (req, res) => {
       const rider = req.body;
       const result = await ridersCollection.insertOne(rider);
@@ -516,7 +529,7 @@ async function run() {
         updated_by,
       };
 
-      const result = await trackingCollection.insertOne(log);
+      const result = await trackingsCollection.insertOne(log);
       res.send({ success: true, insertedId: result.insertedId });
     });
 
@@ -547,14 +560,17 @@ async function run() {
         const { parcelId, email, amount, paymentMethod, transactionId } =
           req.body;
 
-        // 1. Update parcel's payment_status
-        const updateResult = await parcelCollection.updateOne(
+        console.log("🔍 Received payment data:", req.body);
+
+        // ✅ Validate parcelId
+        if (!parcelId || !ObjectId.isValid(parcelId)) {
+          return res.status(400).send({ message: "Invalid parcel ID" });
+        }
+
+        // ✅ Step 1: Update parcel's payment_status
+        const updateResult = await parcelsCollection.updateOne(
           { _id: new ObjectId(parcelId) },
-          {
-            $set: {
-              payment_status: "paid",
-            },
-          }
+          { $set: { payment_status: "paid" } }
         );
 
         if (updateResult.modifiedCount === 0) {
@@ -563,14 +579,13 @@ async function run() {
             .send({ message: "Parcel not found or already paid" });
         }
 
-        // 2. Insert payment record
+        // ✅ Step 2: Save payment
         const paymentDoc = {
           parcelId,
           email,
           amount,
           paymentMethod,
           transactionId,
-          paid_at_string: new Date().toISOString(),
           paid_at: new Date(),
         };
 
@@ -581,11 +596,12 @@ async function run() {
           insertedId: paymentResult.insertedId,
         });
       } catch (error) {
-        console.error("Payment processing failed:", error);
+        console.error("❌ Payment processing failed:", error);
         res.status(500).send({ message: "Failed to record payment" });
       }
     });
 
+    // ✅ Create Payment Intent
     app.post("/create-payment-intent", async (req, res) => {
       const { amountInCents } = req.body;
 
@@ -602,9 +618,9 @@ async function run() {
           payment_method_types: ["card"],
         });
 
-        res.json({ clientSecret: paymentIntent.client_secret });
+        res.send({ clientSecret: paymentIntent.client_secret });
       } catch (error) {
-        console.error("Stripe error:", error.message);
+        console.error("Stripe error:", error);
         res.status(500).json({ error: "Failed to create payment intent" });
       }
     });
